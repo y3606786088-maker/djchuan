@@ -1,10 +1,19 @@
-// 文件名: dianyinduoduo_super_vip.js
-// 描述: 点音多多超级VIP修改（扩展域名）
+// 文件名: dianyinduoduo_super_vip_fixed.js
+// 描述: 点音多多超级VIP修改（修复版）
 
 const url = $request.url;
-const host = $request.host;
+console.log("🚀 超级VIP修改 - URL:", url);
 
-console.log("🚀 超级VIP修改 - 主机:", host);
+// 从URL中提取主机名
+let host = '';
+try {
+    const urlObj = new URL(url);
+    host = urlObj.hostname;
+} catch (e) {
+    // 备用方法：从URL字符串中提取主机名
+    const match = url.match(/https?:\/\/([^\/]+)/);
+    if (match) host = match[1];
+}
 
 // 目标域名列表
 const targetHosts = [
@@ -15,7 +24,7 @@ const targetHosts = [
     'snssdk.com'
 ];
 
-const isTargetHost = targetHosts.some(target => host.includes(target));
+const isTargetHost = host && targetHosts.some(target => host.includes(target));
 
 if (isTargetHost && $response.body) {
     let body = $response.body;
@@ -128,12 +137,16 @@ if (isTargetHost && $response.body) {
         
         if (modified) {
             console.log("🎊 超级VIP修改完成");
+            $done({ body });
         } else {
             console.log("⚠️ 未找到可修改字段");
+            $done({});
         }
     } else {
         console.log("⏭️ 跳过（不包含用户信息）");
+        $done({});
     }
+} else {
+    console.log("⏭️ 跳过（非目标域名或无响应体）");
+    $done({});
 }
-
-$done({});
