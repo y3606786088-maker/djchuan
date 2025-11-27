@@ -1,152 +1,70 @@
-// 文件名: dianyinduoduo_super_vip_fixed.js
-// 描述: 点音多多超级VIP修改（修复版）
+// ==UserScript==
+// @name         电影多多 SVIP 状态修改
+// @namespace    https://github.com/your-username/loon-scripts
+// @version      1.0
+// @description  Loon MITM 脚本，强制修改电影多多 VIP 状态为永久 SVIP
+// @author       Your Name
+// @match        https://new.dianyinduoduo.com/vip/h5/index.ios.v4.php*
+// @grant        none
+// ==/UserScript==
 
-const url = $request.url;
-console.log("🚀 超级VIP修改 - URL:", url);
+(function() {
+    'use strict';
 
-// 从URL中提取主机名
-let host = '';
-try {
-    const urlObj = new URL(url);
-    host = urlObj.hostname;
-} catch (e) {
-    // 备用方法：从URL字符串中提取主机名
-    const match = url.match(/https?:\/\/([^\/]+)/);
-    if (match) host = match[1];
-}
-
-// 目标域名列表
-const targetHosts = [
-    'dianyinduoduo.com',
-    'ctobsnssdk.com',
-    'byteoversea.com',
-    'bytedance.com',
-    'snssdk.com'
-];
-
-const isTargetHost = host && targetHosts.some(target => host.includes(target));
-
-if (isTargetHost && $response.body) {
-    let body = $response.body;
-    let modified = false;
-    
-    console.log("🎯 处理目标域名:", host);
-    
-    // 检查是否包含用户信息
-    const hasUserInfo = body.includes('vip_type') || body.includes('is_vip') || 
-                       body.includes('user_info') || body.includes('uid') ||
-                       body.includes('login_status');
-    
-    if (hasUserInfo) {
-        console.log("✅ 发现用户信息，开始修改...");
+    // Loon MITM 拦截响应处理
+    if (typeof $response !== 'undefined' && $response.body) {
+        let html = $response.body;
         
-        // 方法1: 处理JSON响应
-        if ((body.trim().startsWith('{') || body.trim().startsWith('[')) && body.includes('{')) {
-            try {
-                let jsonData = JSON.parse(body);
-                console.log("📊 JSON结构:", Object.keys(jsonData));
-                
-                // 递归修改VIP状态
-                function superModifyVIP(obj, path = '') {
-                    if (typeof obj !== 'object' || obj === null) return;
-                    
-                    for (let key in obj) {
-                        const currentPath = path ? `${path}.${key}` : key;
-                        const lowerKey = key.toLowerCase();
-                        
-                        // VIP状态修改
-                        if (lowerKey.includes('vip_type') || lowerKey.includes('viptype')) {
-                            obj[key] = 2;
-                            console.log(`✅ 修改 ${currentPath}: 2`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('vip_status')) {
-                            obj[key] = 2;
-                            console.log(`✅ 修改 ${currentPath}: 2`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('is_vip') || lowerKey.includes('isvip')) {
-                            obj[key] = true;
-                            console.log(`✅ 修改 ${currentPath}: true`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('vip_expire') || lowerKey.includes('expire_time')) {
-                            obj[key] = "2030-12-31 23:59:59";
-                            console.log(`✅ 修改 ${currentPath}: 2030-12-31 23:59:59`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('uid') || lowerKey.includes('user_id')) {
-                            obj[key] = "12412462";
-                            console.log(`✅ 修改 ${currentPath}: 12412462`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('nickname') || lowerKey.includes('user_name')) {
-                            obj[key] = "VIP尊享用户";
-                            console.log(`✅ 修改 ${currentPath}: VIP尊享用户`);
-                            modified = true;
-                        }
-                        else if (lowerKey.includes('is_login') || lowerKey.includes('logged_in')) {
-                            obj[key] = true;
-                            console.log(`✅ 修改 ${currentPath}: true`);
-                            modified = true;
-                        }
-                        // 递归处理嵌套对象
-                        else if (typeof obj[key] === 'object') {
-                            superModifyVIP(obj[key], currentPath);
-                        }
+        // 1. 强制设置登录状态为已登录
+        html = html.replace(/var is_login = false;/g, 'var is_login = true;');
+        
+        // 2. 注入 SVIP 用户信息（覆盖 initUserInfo 调用）
+        // 用户名默认显示「SVIP会员」，头像用官方默认图，VIP类型2=SVIP，有效期永久（2099年）
+        const svipInitCode = `
+        // 注入 SVIP 配置
+        (function() {
+            // 强制初始化 SVIP 信息
+            initUserInfo(
+                "SVIP会员",  // 用户名
+                "//hscdn.dianyinduoduo.com/img/vip/v1/vip_avatar_default.png",  // 头像
+                "2",         // viptype=2（SVIP标识）
+                "2099-12-31",// 有效期（永久有效）
+                "${getUid()}" // 保留原用户ID（从URL参数提取）
+            );
+            
+            // 从URL参数提取用户UID（保持原用户标识）
+            function getUid() {
+                const urlParams = new URLSearchParams(window.location.search);
+                const dataParam = urlParams.get('data');
+                if (dataParam) {
+                    try {
+                        const data = JSON.parse(decodeURIComponent(dataParam));
+                        return data.Uid || "10000000"; // 默认UID
+                    } catch (e) {
+                        return "10000000";
                     }
                 }
-                
-                superModifyVIP(jsonData);
-                
-                if (modified) {
-                    body = JSON.stringify(jsonData);
-                    console.log("🎉 JSON响应修改完成");
-                }
-                
-            } catch (e) {
-                console.log("❌ JSON解析失败，尝试字符串替换");
+                return "10000000";
             }
-        }
-        
-        // 方法2: 字符串替换
-        if (!modified) {
-            console.log("🔄 尝试字符串替换");
             
-            const replacements = [
-                [/"vip_type":\s*\d+/g, '"vip_type": 2'],
-                [/"vip_status":\s*\d+/g, '"vip_status": 2'],
-                [/"is_vip":\s*false/g, '"is_vip": true'],
-                [/"is_vip":\s*0/g, '"is_vip": 1'],
-                [/"vip_expire":\s*"[^"]*"/g, '"vip_expire": "2030-12-31 23:59:59"'],
-                [/"expire_time":\s*"[^"]*"/g, '"expire_time": "2030-12-31 23:59:59"'],
-                [/"uid":\s*"\d+"/g, '"uid": "12412462"'],
-                [/"user_id":\s*"\d+"/g, '"user_id": "12412462"'],
-                [/"nickname":\s*"[^"]*"/g, '"nickname": "VIP尊享用户"'],
-                [/"is_login":\s*false/g, '"is_login": true']
-            ];
-            
-            replacements.forEach(([pattern, replacement]) => {
-                if (body.match(pattern)) {
-                    body = body.replace(pattern, replacement);
-                    modified = true;
-                    console.log(`✅ 字符串替换: ${pattern}`);
-                }
-            });
-        }
+            // 强制显示 SVIP 图标和权益
+            document.querySelector('.userinfo-vip-jiaobiao-img').src = '//hscdn.dianyinduoduo.com/img/vip/v1/svip_is_icon.png';
+            document.querySelector('.userinfo-vip-jiaobiao-wrapper').style.display = 'block';
+            document.querySelector('.userinfo-desc').innerText = '永久SVIP会员';
+        })();
+        `;
         
-        if (modified) {
-            console.log("🎊 超级VIP修改完成");
-            $done({ body });
-        } else {
-            console.log("⚠️ 未找到可修改字段");
-            $done({});
-        }
-    } else {
-        console.log("⏭️ 跳过（不包含用户信息）");
-        $done({});
+        // 将 SVIP 注入代码插入到原脚本执行后（</script> 标签前）
+        html = html.replace(/<\/script>(?=[\s\S]*<\/body>)/, svipInitCode + '</script>');
+        
+        // 3. 隐藏「立即登录」按钮和登录提示
+        html = html.replace(/onclick="login\(\)"/g, 'onclick="return false;"');
+        html = html.replace(/请登录后购买会员/g, 'SVIP会员无需重复购买');
+        
+        // 4. 强制所有套餐显示 SVIP 标识（可选优化）
+        html = html.replace(/viptaocan-svip-price/g, 'viptaocan-svip-price svip-tag');
+        
+        // 返回修改后的响应
+        $done({ body: html });
     }
-} else {
-    console.log("⏭️ 跳过（非目标域名或无响应体）");
-    $done({});
-}
+})();
