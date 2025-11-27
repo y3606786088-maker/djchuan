@@ -1,76 +1,74 @@
-// 文件名: dianyinduoduo_debug_enhanced.js
-// 描述: 点音多多增强调试脚本
+// 文件名: dianyinduoduo_vip_fix.js
+// 描述: 点音多多VIP页面强制修改
 
-const url = $request.url;
-const method = $request.method;
-const status = $response.status;
-const headers = $response.headers;
-
-console.log("=== 点音多多请求调试 ===");
-console.log("🔗 URL:", url);
-console.log("📝 方法:", method);
-console.log("📊 状态码:", status);
-
-// 检查响应头
-if (headers) {
-    console.log("📋 响应头:", JSON.stringify(headers));
-    
-    // 检查内容类型
-    const contentType = headers['Content-Type'] || headers['content-type'];
-    if (contentType) {
-        console.log("📄 内容类型:", contentType);
-    }
-    
-    // 检查是否gzip压缩
-    const contentEncoding = headers['Content-Encoding'] || headers['content-encoding'];
-    if (contentEncoding) {
-        console.log("🗜️ 内容编码:", contentEncoding);
-    }
-}
-
-// 处理响应体
-if ($response.body) {
-    let body = $response.body;
-    console.log("📦 原始响应体长度:", body.length);
-    
+if ($response.status === 200 && $request.url.includes('/vip/h5/index.ios.v4.php')) {
     try {
-        // 尝试直接作为文本处理（Loon通常会自动解压gzip）
-        if (body.length > 0) {
-            // 检查是否是HTML
-            if (body.includes('<!DOCTYPE') || body.includes('<html') || body.includes('<script')) {
-                console.log("🌐 响应类型: HTML页面");
-                console.log("📄 HTML预览:", body.substring(0, 500).replace(/\n/g, ' '));
-            }
-            // 检查是否是JSON
-            else if (body.trim().startsWith('{') || body.trim().startsWith('[')) {
-                console.log("📋 响应类型: JSON");
-                try {
-                    const jsonObj = JSON.parse(body);
-                    console.log("📊 JSON键名:", Object.keys(jsonObj));
-                    console.log("📄 JSON预览:", JSON.stringify(jsonObj).substring(0, 500));
-                    
-                    // 检查是否包含用户信息
-                    const userKeys = ['user', 'vip', 'member', 'login', 'uid', 'vip_type', 'vip_expire'];
-                    const hasUserInfo = JSON.stringify(jsonObj).toLowerCase().includes(userKeys.join('","').toLowerCase());
-                    if (hasUserInfo) {
-                        console.log("🎯 发现用户信息!");
-                    }
-                } catch (e) {
-                    console.log("❌ JSON解析失败，可能是压缩数据");
-                }
-            }
-            // 其他类型
-            else {
-                console.log("❓ 响应类型: 未知");
-                console.log("📄 内容预览:", body.substring(0, 200));
-            }
+        console.log("🎯 开始强制修改VIP页面...");
+        let body = $response.body;
+        
+        // 记录原始内容用于调试
+        console.log("📄 原始HTML包含关键词:");
+        console.log("- 立即登录:", body.includes('立即登录'));
+        console.log("- 请登录后购买会员:", body.includes('请登录后购买会员'));
+        console.log("- is_login:", body.includes('is_login'));
+        
+        // 方法1: 直接字符串替换（最可靠）
+        body = body.replace(/立即登录/g, 'VIP尊享用户');
+        body = body.replace(/请登录后购买会员/g, '有效期至: 2030-12-31    用户ID: 12412462');
+        
+        // 方法2: 修改JavaScript变量
+        body = body.replace(/var is_login = false;/g, 'var is_login = true;');
+        body = body.replace(/is_login = false/g, 'is_login = true');
+        
+        // 方法3: 显示VIP角标
+        body = body.replace(/display: none/g, 'display: block');
+        body = body.replace(/vip_isnot_icon1\.png/g, 'svip_is_icon.png');
+        
+        // 方法4: 插入自动初始化代码
+        const autoInit = `
+<!-- VIP自动初始化 -->
+<script>
+setTimeout(function() {
+    // 方法A: 调用页面现有函数
+    if (typeof initUserInfo === 'function') {
+        initUserInfo("VIP尊享用户", "", "2", "2030-12-31", "12412462");
+    }
+    
+    // 方法B: 直接DOM操作
+    try {
+        var titleEl = document.querySelector('.userinfo-title');
+        var descEl = document.querySelector('.userinfo-desc');
+        var vipBadge = document.querySelector('.userinfo-vip-jiaobiao-wrapper');
+        var vipImg = document.querySelector('.userinfo-vip-jiaobiao-img');
+        
+        if (titleEl) titleEl.textContent = 'VIP尊享用户';
+        if (descEl) descEl.innerHTML = '有效期至: 2030-12-31 &nbsp;&nbsp; 用户ID: 12412462';
+        if (vipBadge) vipBadge.style.display = 'block';
+        if (vipImg) vipImg.src = '/img/vip/v1/svip_is_icon.png';
+        
+        console.log('VIP信息强制初始化完成');
+    } catch(e) {
+        console.log('DOM操作错误:', e);
+    }
+}, 500);
+</script>
+`;
+        
+        // 插入到body结束前
+        if (body.includes('</body>')) {
+            body = body.replace('</body>', autoInit + '</body>');
+        } else {
+            body += autoInit;
         }
+        
+        console.log("✅ VIP页面强制修改完成");
+        console.log("📊 修改后长度:", body.length);
+        $done({ body });
+        
     } catch (error) {
-        console.log("❌ 响应体处理错误:", error);
+        console.log("❌ VIP页面修改错误:", error);
+        $done({});
     }
 } else {
-    console.log("📭 无响应体");
+    $done({});
 }
-
-console.log("=== 调试结束 ===\n");
-$done({});
